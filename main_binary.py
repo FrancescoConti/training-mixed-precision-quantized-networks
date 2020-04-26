@@ -1,4 +1,5 @@
 import argparse
+import PIL
 import os
 import time
 import logging
@@ -19,6 +20,12 @@ import json
 from torchvision.utils import save_image
 import quantization 
 from quantization.quant_auto import memory_driven_quant
+from tqdm import tqdm
+import nemo
+import warnings
+
+# filter out ImageNet EXIF warnings
+warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -146,6 +153,7 @@ def main():
     logging.info("created model with configuration: %s", model_config)
     print(model)
 
+
     num_parameters = sum([l.nelement() for l in model.parameters()])
     logging.info("number of parameters: %d", num_parameters)
 
@@ -173,19 +181,11 @@ def main():
         batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
-    if args.quantizer:
-        val_quant_loader = torch.utils.data.DataLoader(
-            val_data,
-            batch_size=32, shuffle=False,
-            num_workers=args.workers, pin_memory=True)
-
-
     train_data = get_dataset(args.dataset, 'train', transform['train'])
     train_loader = torch.utils.data.DataLoader(
         train_data,
         batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True)
-
 
     #define optimizer
     params_dict = dict(model.named_parameters())
@@ -195,40 +195,10 @@ def main():
             params += [{'params':value,'weight_decay': 1e-4}]
         else:
             params += [{'params':value}]
-    optimizer = torch.optim.SGD(params, lr=0.1)
+    optimizer = torch.optim.Adam(params, lr=1e-4)
     logging.info('training regime: %s', regime)
 
-    #define quantizer 
-    if args.quantizer:
-        if args.mem_constraint is not '':
-            mem_contraints = json.loads(args.mem_constraint)
-            print('This is the memory constraint:', mem_contraints )
-            if mem_contraints is not None:
-                x_test = torch.Tensor(1,3,args.mobilenet_input,args.mobilenet_input)
-                add_config = memory_driven_quant(model, x_test, mem_contraints[0], mem_contraints[1], args.mixed_prec_quant)
-                if add_config == -1:
-                    print('The quantization process failed!')
-            else:
-                add_config = []
-        else:
-            mem_constraint = None
-            if args.quant_add_config is not '':
-                add_config = json.loads(args.quant_add_config)
-
-            else:
-                add_config = []
-
-        quantizer = quantization.QuantOp(model, args.type_quant, weight_bits, \
-            batch_fold_type=args.batch_fold_type, batch_fold_delay=args.batch_fold_delay, act_bits=activ_bits, \
-            add_config = add_config )
-        quantizer.deployment_model.type(args.type)
-        quantizer.add_params_to_optimizer(optimizer)
-
-    else:
-        quantizer = None
-
-    #exit(0)
-
+    quantizer = None
 
     #multi gpus
     if args.gpus and len(args.gpus) > 1:
@@ -251,19 +221,9 @@ def main():
         else:
             logging.error("no checkpoint found at '%s'", args.resume)
 
-    if args.quantizer:
-        quantizer.init_parameters()
-
     if args.evaluate:
         # evaluate on validation set
-
-        if args.quantizer:
-            # evaluate deployment model on validation set
-            quantizer.generate_deployment_model()
-            val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(
-                val_quant_loader, quantizer.deployment_model, criterion, 0, 'deployment' )
-        else:
-            val_quant_loss, val_quant_prec1, val_quant_prec5 = 0, 0, 0
+        val_quant_loss, val_quant_prec1, val_quant_prec5 = 0, 0, 0
 
         val_loss, val_prec1, val_prec5 = validate(
            val_loader, model, criterion, 0, quantizer)
@@ -277,7 +237,42 @@ def main():
                      val_quant_prec1=val_quant_prec1, val_quant_prec5=val_quant_prec5))
         exit(0)
 
+    mobilenet_width = float(args.mobilenet_width)
+    mobilenet_input = int(args.mobilenet_input) 
+    val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(val_loader, model, criterion, 0, None)
+    print("[NEMO] Full-precision model: top-1=%.2f top-5=%.2f" % (val_quant_prec1, val_quant_prec5))   
+    if args.quantizer:
+        print("[NEMO] Model calibration")
+        model = nemo.transform.quantize_pact(model, dummy_input=torch.randn((1,3,mobilenet_input,mobilenet_input)).to('cuda'))
+        model.change_precision(bits=20)
+        model.reset_alpha_weights()
+        
+        FOLD  = False
+        EQUNF = False
+        if FOLD:
+            model.fold_bn()
+            # use DFQ for weight equalization
+            model.equalize_weights_dfq()
+        elif EQUNF:
+            model.equalize_weights_unfolding()
 
+        # calibrate after equalization
+        with model.statistics_act():
+            val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(val_loader, model, criterion, 0, None)
+
+        # use this in place of the usual calibration, because PACT_Act's descend from ReLU6 and
+        # the trained weights already assume the presence of a clipping effect
+        # this should be integrated in NEMO by saving the "origin" of the PACT_Act!
+        for i in range(0,27):
+            model.model[i][3].alpha.data[:] = min(model.model[i][3].alpha.item(), model.model[i][3].max)
+
+        val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(val_loader, model, criterion, 0, None)
+ 
+        print("[NEMO] 20-bit model: top-1=%.2f top-5=%.2f" % (val_quant_prec1, val_quant_prec5))   
+        nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_quant_prec1, checkpoint_name='mobilenet_%.1f_%d_calibrated' % (mobilenet_width, mobilenet_input), checkpoint_suffix='')
+
+        model.change_precision(bits=8)
+        model.change_precision(bits=7, scale_activations=False)
 
     for epoch in range(args.start_epoch, args.epochs):
         optimizer = adjust_optimizer(optimizer, epoch, regime)
@@ -286,39 +281,21 @@ def main():
         train_loss, train_prec1, train_prec5 = train(
             train_loader, model, criterion, epoch, optimizer, quantizer)
 
-        # evaluate on validation set
         val_loss, val_prec1, val_prec5 = validate(
             val_loader, model, criterion, epoch, quantizer)
 
-        if args.quantizer:
-            # evaluate deployment model on validation set
-            quantizer.generate_deployment_model()
-            val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(
-                val_quant_loader, quantizer.deployment_model, criterion, epoch, 'deployment' )
-        else:
-            val_quant_loss, val_quant_prec1, val_quant_prec5 = 0, 0, 0
-
+        val_quant_loss, val_quant_prec1, val_quant_prec5 = 0, 0, 0
 
         # remember best prec@1 and save checkpoint
         is_best = val_prec1 > best_prec1
         best_prec1 = max(val_prec1, best_prec1)
           
-     #save_model
+        #save_model
         if args.save_check:
+            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_quant_prec1, checkpoint_name='mobilenet_%.1f_%d_checkpoint' % (mobilenet_width, mobilenet_input), checkpoint_suffix='')
 
-            print('Saving Model!! Accuracy : ', best_prec1)
-            save_checkpoint({
-                   'epoch': epoch + 1,
-                   'model': args.model,
-                   'config': model_config,
-                   'state_dict': model.state_dict(),
-                   'best_prec1': best_prec1,
-                   'regime': regime ,
-                   'quantizer': quantizer,
-                   'add_config': add_config,
-                   'fold_type': args.batch_fold_type
-            }, is_best, path=save_path)
-
+        if is_best:
+            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_quant_prec1, checkpoint_name='mobilenet_%.1f_%d_best' % (mobilenet_width, mobilenet_input), checkpoint_suffix='')
 
         logging.info('\n Epoch: {0}\t'
                      'Training Loss {train_loss:.4f} \t'
@@ -344,10 +321,7 @@ def main():
 
 
 
-def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=None, quantizer=None ):
-
-#    if args.gpus and len(args.gpus) > 1:
-#        model = torch.nn.DataParallel(model, args.gpus)
+def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=None, quantizer=None, verbose=True ):
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -358,80 +332,60 @@ def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=Non
     end = time.time()
 
     # apply transofrms at the begininng of each epoch
-
     print('Training: ',training )
-
-    if quantizer is not None and quantizer is not 'deployment':
-        quantizer.freeze_BN_and_fold(epoch)
 
     # input quantization
     n_bits_inpt = 8 #retrieve from quantizer in future version
     max_inpt, min_inpt = 1, -1 #retrieve from quantizer in future version
     n = 2 ** n_bits_inpt - 1
     scale_factor = n / (max_inpt - min_inpt)
-
     
-    for i, (inputs, target) in enumerate(data_loader):
-        # measure data loading time
-        data_time.update(time.time() - end)
-        if args.gpus is not None:
-            target = target.cuda(async=True)
+    with tqdm(total=len(data_loader),
+          desc='Epoch     #{}'.format(epoch),
+          disable=not verbose) as t:
+        for i, (inputs, target) in enumerate(data_loader):
+            # measure data loading time
+            data_time.update(time.time() - end)
+            if args.gpus is not None:
+                target = target.cuda(async=True)
+    
+            with torch.no_grad():
+                input_var = Variable(inputs.type(args.type))
+                target_var = Variable(target)
 
-        with torch.no_grad():
-            input_var = Variable(inputs.type(args.type))
-            target_var = Variable(target)
-
-        # quantization before computing output
-        if quantizer == 'deployment':
-            input_var = input_var.clamp(min_inpt, max_inpt).mul(scale_factor).round()
-        elif quantizer is not None:
-            input_var = input_var.clamp(min_inpt, max_inpt).mul(scale_factor).round().div(scale_factor)
-            quantizer.store_and_quantize(training=training )
-
-        # compute output
-        output = model(input_var)
-
-        loss = criterion(output, target_var)
-        if type(output) is list:
-            output = output[0]
-
-        # measure accuracy and record loss
-        prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
-        losses.update(loss.data.item(), inputs.size(0))
-        top1.update(prec1.item(), inputs.size(0))
-        top5.update(prec5.item(), inputs.size(0))
-
-        if training:
-            # compute gradient and do SGD step
-            optimizer.zero_grad()
-            loss.backward()
-
-            # restore real value parameters before update
-            if quantizer is not None:
-                quantizer.backprop_quant_gradients()    
-                quantizer.restore_real_value()            
-
-            optimizer.step()
-            
-        elif quantizer is not None and quantizer is not 'deployment':
-            quantizer.restore_real_value()
-
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-
-        if i % args.print_freq == 0:
-            logging.info('{phase} - Epoch: [{0}][{1}/{2}]\t'
-                         'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
-                         'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
-                         'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
-                         'Prec@1 {top1.val:.3f} ({top1.avg:.3f})\t'
-                         'Prec@5 {top5.val:.3f} ({top5.avg:.3f})'.format(
-                             epoch, i, len(data_loader),
-                             phase='TRAINING' if training else 'EVALUATING',
-                             batch_time=batch_time,
-                             data_time=data_time, loss=losses, top1=top1, top5=top5))
+            # # quantization before computing output
+            # if quantizer == 'deployment':
+            #     input_var = input_var.clamp(min_inpt, max_inpt).mul(scale_factor).round()
+            # elif quantizer is not None:
+            #     input_var = input_var.clamp(min_inpt, max_inpt).mul(scale_factor).round().div(scale_factor)
+            #     quantizer.store_and_quantize(training=training )
+    
+            # compute output
+            output = model(input_var)
+    
+            loss = criterion(output, target_var)
+            if type(output) is list:
+                output = output[0]
+    
+            # measure accuracy and record loss
+            prec1, prec5 = accuracy(output.data, target, topk=(1, 5))
+            losses.update(loss.data.item(), inputs.size(0))
+            top1.update(prec1.item(), inputs.size(0))
+            top5.update(prec5.item(), inputs.size(0))
+    
+            if training:
+                # compute gradient and do SGD step
+                optimizer.zero_grad()
+                loss.backward()
+    
+                optimizer.step()
+    
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+    
+            t.set_postfix({'loss': losses.avg, 'top1': top1.avg, 'top5': top5.avg})
+            t.update(1)
 
     return losses.avg, top1.avg, top5.avg
 

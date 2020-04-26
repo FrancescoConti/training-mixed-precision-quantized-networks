@@ -2,7 +2,7 @@ import os
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
-_IMAGENET_MAIN_PATH = ''
+_IMAGENET_MAIN_PATH = '/raid/lukasc/datasets/ilsvrc2012/'
 _DATASETS_MAIN_PATH = ''
 
 _dataset_path = {

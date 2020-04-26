@@ -24,141 +24,141 @@ import numpy as np
 dummy_replace = OrderedDict([\
 ('features/Logits/Conv2d_1c_1x1/biases','fc.bias' ),\
 ('features/Logits/Conv2d_1c_1x1/weights','fc.weight'),\
-('features/Conv2d_0/weights','model.0.0.weight'         ),  \
-('features/Conv2d_0/BatchNorm/beta','model.0.1.bias'      ),\
-('features/Conv2d_0/BatchNorm/moving_mean','model.0.1.running_mean'   ),  \
-('features/Conv2d_0/BatchNorm/moving_variance','model.0.1.running_var'    ),  \
-('features/Conv2d_0/BatchNorm/gamma','model.0.1.weight'        ),\
-('features/Conv2d_1_depthwise/depthwise_weights','model.1.0.weight' ),\
-('features/Conv2d_1_depthwise/BatchNorm/beta','model.1.1.bias' ),\
-('features/Conv2d_1_depthwise/BatchNorm/moving_mean','model.1.1.running_mean'   ),  \
-('features/Conv2d_1_depthwise/BatchNorm/moving_variance','model.1.1.running_var'    ),  \
-('features/Conv2d_1_depthwise/BatchNorm/gamma','model.1.1.weight'         ),  \
-('features/Conv2d_1_pointwise/weights','model.2.0.weight'         ),  \
-('features/Conv2d_1_pointwise/BatchNorm/beta','model.2.1.bias'           ),  \
-('features/Conv2d_1_pointwise/BatchNorm/moving_mean','model.2.1.running_mean'   ),  \
-('features/Conv2d_1_pointwise/BatchNorm/moving_variance','model.2.1.running_var'    ),  \
-('features/Conv2d_1_pointwise/BatchNorm/gamma','model.2.1.weight'         ),  \
-('features/Conv2d_2_depthwise/depthwise_weights','model.3.0.weight'         ),  \
-('features/Conv2d_2_depthwise/BatchNorm/beta','model.3.1.bias'           ),  \
-('features/Conv2d_2_depthwise/BatchNorm/moving_mean','model.3.1.running_mean'   ),  \
-('features/Conv2d_2_depthwise/BatchNorm/moving_variance','model.3.1.running_var'    ),  \
-('features/Conv2d_2_depthwise/BatchNorm/gamma','model.3.1.weight'         ),  \
-('features/Conv2d_2_pointwise/weights','model.4.0.weight'         ),  \
-('features/Conv2d_2_pointwise/BatchNorm/beta','model.4.1.bias'           ),  \
-('features/Conv2d_2_pointwise/BatchNorm/moving_mean','model.4.1.running_mean'   ),  \
-('features/Conv2d_2_pointwise/BatchNorm/moving_variance','model.4.1.running_var'    ),  \
-('features/Conv2d_2_pointwise/BatchNorm/gamma','model.4.1.weight'         ),  \
-('features/Conv2d_3_depthwise/depthwise_weights','model.5.0.weight'         ),  \
-('features/Conv2d_3_depthwise/BatchNorm/beta','model.5.1.bias'           ),  \
-('features/Conv2d_3_depthwise/BatchNorm/moving_mean','model.5.1.running_mean'   ),  \
-('features/Conv2d_3_depthwise/BatchNorm/moving_variance','model.5.1.running_var'    ),  \
-('features/Conv2d_3_depthwise/BatchNorm/gamma','model.5.1.weight'         ),  \
-('features/Conv2d_3_pointwise/weights','model.6.0.weight'         ),  \
-('features/Conv2d_3_pointwise/BatchNorm/beta','model.6.1.bias'           ),  \
-('features/Conv2d_3_pointwise/BatchNorm/moving_mean','model.6.1.running_mean'   ),  \
-('features/Conv2d_3_pointwise/BatchNorm/moving_variance','model.6.1.running_var'    ),  \
-('features/Conv2d_3_pointwise/BatchNorm/gamma','model.6.1.weight'         ),  \
-('features/Conv2d_4_depthwise/depthwise_weights','model.7.0.weight'         ),  \
-('features/Conv2d_4_depthwise/BatchNorm/beta','model.7.1.bias'           ),  \
-('features/Conv2d_4_depthwise/BatchNorm/moving_mean','model.7.1.running_mean'   ),  \
-('features/Conv2d_4_depthwise/BatchNorm/moving_variance','model.7.1.running_var'    ),  \
-('features/Conv2d_4_depthwise/BatchNorm/gamma','model.7.1.weight'         ),  \
-('features/Conv2d_4_pointwise/weights','model.8.0.weight'         ),  \
-('features/Conv2d_4_pointwise/BatchNorm/beta','model.8.1.bias'           ),  \
-('features/Conv2d_4_pointwise/BatchNorm/moving_mean','model.8.1.running_mean'   ),  \
-('features/Conv2d_4_pointwise/BatchNorm/moving_variance','model.8.1.running_var'    ),  \
-('features/Conv2d_4_pointwise/BatchNorm/gamma','model.8.1.weight'         ),  \
-('features/Conv2d_5_depthwise/depthwise_weights','model.9.0.weight'         ),  \
-('features/Conv2d_5_depthwise/BatchNorm/beta','model.9.1.bias'           ),  \
-('features/Conv2d_5_depthwise/BatchNorm/moving_mean','model.9.1.running_mean'   ),  \
-('features/Conv2d_5_depthwise/BatchNorm/moving_variance','model.9.1.running_var'    ),  \
-('features/Conv2d_5_depthwise/BatchNorm/gamma','model.9.1.weight'         ),  \
-('features/Conv2d_5_pointwise/weights','model.10.0.weight'        ),  \
-('features/Conv2d_5_pointwise/BatchNorm/beta','model.10.1.bias'          ),  \
-('features/Conv2d_5_pointwise/BatchNorm/moving_mean','model.10.1.running_mean'  ),  \
-('features/Conv2d_5_pointwise/BatchNorm/moving_variance','model.10.1.running_var'   ),  \
-('features/Conv2d_5_pointwise/BatchNorm/gamma','model.10.1.weight'        ),  \
-('features/Conv2d_6_depthwise/depthwise_weights','model.11.0.weight'        ),  \
-('features/Conv2d_6_depthwise/BatchNorm/beta','model.11.1.bias'          ),  \
-('features/Conv2d_6_depthwise/BatchNorm/moving_mean','model.11.1.running_mean'  ),  \
-('features/Conv2d_6_depthwise/BatchNorm/moving_variance','model.11.1.running_var'   ),  \
-('features/Conv2d_6_depthwise/BatchNorm/gamma','model.11.1.weight'        ),  \
-('features/Conv2d_6_pointwise/weights','model.12.0.weight'        ),  \
-('features/Conv2d_6_pointwise/BatchNorm/beta','model.12.1.bias'          ),  \
-('features/Conv2d_6_pointwise/BatchNorm/moving_mean','model.12.1.running_mean'  ),  \
-('features/Conv2d_6_pointwise/BatchNorm/moving_variance','model.12.1.running_var'   ),  \
-('features/Conv2d_6_pointwise/BatchNorm/gamma','model.12.1.weight'        ),  \
-('features/Conv2d_7_depthwise/depthwise_weights','model.13.0.weight'        ),  \
-('features/Conv2d_7_depthwise/BatchNorm/beta','model.13.1.bias'          ),  \
-('features/Conv2d_7_depthwise/BatchNorm/moving_mean','model.13.1.running_mean'  ),  \
-('features/Conv2d_7_depthwise/BatchNorm/moving_variance','model.13.1.running_var'   ),  \
-('features/Conv2d_7_depthwise/BatchNorm/gamma','model.13.1.weight'        ),  \
-('features/Conv2d_7_pointwise/weights','model.14.0.weight'        ),  \
-('features/Conv2d_7_pointwise/BatchNorm/beta','model.14.1.bias'          ),  \
-('features/Conv2d_7_pointwise/BatchNorm/moving_mean','model.14.1.running_mean'  ),  \
-('features/Conv2d_7_pointwise/BatchNorm/moving_variance','model.14.1.running_var'   ),  \
-('features/Conv2d_7_pointwise/BatchNorm/gamma','model.14.1.weight'        ),  \
-('features/Conv2d_8_depthwise/depthwise_weights','model.15.0.weight'        ),  \
-('features/Conv2d_8_depthwise/BatchNorm/beta','model.15.1.bias'          ),  \
-('features/Conv2d_8_depthwise/BatchNorm/moving_mean','model.15.1.running_mean'  ),  \
-('features/Conv2d_8_depthwise/BatchNorm/moving_variance','model.15.1.running_var'   ),  \
-('features/Conv2d_8_depthwise/BatchNorm/gamma','model.15.1.weight'        ),  \
-('features/Conv2d_8_pointwise/weights','model.16.0.weight'        ),  \
-('features/Conv2d_8_pointwise/BatchNorm/beta','model.16.1.bias'          ),  \
-('features/Conv2d_8_pointwise/BatchNorm/moving_mean','model.16.1.running_mean'  ),  \
-('features/Conv2d_8_pointwise/BatchNorm/moving_variance','model.16.1.running_var'   ),  \
-('features/Conv2d_8_pointwise/BatchNorm/gamma','model.16.1.weight'        ),  \
-('features/Conv2d_9_depthwise/depthwise_weights','model.17.0.weight'        ),  \
-('features/Conv2d_9_depthwise/BatchNorm/beta','model.17.1.bias'          ),  \
-('features/Conv2d_9_depthwise/BatchNorm/moving_mean','model.17.1.running_mean'  ),  \
-('features/Conv2d_9_depthwise/BatchNorm/moving_variance','model.17.1.running_var'   ),  \
-('features/Conv2d_9_depthwise/BatchNorm/gamma','model.17.1.weight'        ),  \
-('features/Conv2d_9_pointwise/weights','model.18.0.weight'        ),  \
-('features/Conv2d_9_pointwise/BatchNorm/beta','model.18.1.bias'          ),  \
-('features/Conv2d_9_pointwise/BatchNorm/moving_mean','model.18.1.running_mean'  ),  \
-('features/Conv2d_9_pointwise/BatchNorm/moving_variance','model.18.1.running_var'   ),  \
-('features/Conv2d_9_pointwise/BatchNorm/gamma','model.18.1.weight'        ),  \
-('features/Conv2d_10_depthwise/depthwise_weights','model.19.0.weight'        ),  \
-('features/Conv2d_10_depthwise/BatchNorm/beta','model.19.1.bias'          ),  \
-('features/Conv2d_10_depthwise/BatchNorm/moving_mean','model.19.1.running_mean'  ),  \
-('features/Conv2d_10_depthwise/BatchNorm/moving_variance','model.19.1.running_var'   ),  \
-('features/Conv2d_10_depthwise/BatchNorm/gamma','model.19.1.weight'        ),  \
-('features/Conv2d_10_pointwise/weights','model.20.0.weight'        ),  \
-('features/Conv2d_10_pointwise/BatchNorm/beta','model.20.1.bias'          ),  \
-('features/Conv2d_10_pointwise/BatchNorm/moving_mean','model.20.1.running_mean'  ),  \
-('features/Conv2d_10_pointwise/BatchNorm/moving_variance','model.20.1.running_var'   ),  \
-('features/Conv2d_10_pointwise/BatchNorm/gamma','model.20.1.weight'        ),  \
-('features/Conv2d_11_depthwise/depthwise_weights','model.21.0.weight'        ),  \
-('features/Conv2d_11_depthwise/BatchNorm/beta','model.21.1.bias'          ),  \
-('features/Conv2d_11_depthwise/BatchNorm/moving_mean','model.21.1.running_mean'  ),  \
-('features/Conv2d_11_depthwise/BatchNorm/moving_variance','model.21.1.running_var'   ),  \
-('features/Conv2d_11_depthwise/BatchNorm/gamma','model.21.1.weight'        ),  \
-('features/Conv2d_11_pointwise/weights','model.22.0.weight'        ),  \
-('features/Conv2d_11_pointwise/BatchNorm/beta','model.22.1.bias'          ),  \
-('features/Conv2d_11_pointwise/BatchNorm/moving_mean','model.22.1.running_mean'  ),  \
-('features/Conv2d_11_pointwise/BatchNorm/moving_variance','model.22.1.running_var'   ),  \
-('features/Conv2d_11_pointwise/BatchNorm/gamma','model.22.1.weight'        ),  \
-('features/Conv2d_12_depthwise/depthwise_weights','model.23.0.weight'        ),  \
-('features/Conv2d_12_depthwise/BatchNorm/beta','model.23.1.bias'          ),  \
-('features/Conv2d_12_depthwise/BatchNorm/moving_mean','model.23.1.running_mean'  ),  \
-('features/Conv2d_12_depthwise/BatchNorm/moving_variance','model.23.1.running_var'   ),  \
-('features/Conv2d_12_depthwise/BatchNorm/gamma','model.23.1.weight'        ),  \
-('features/Conv2d_12_pointwise/weights','model.24.0.weight'        ),  \
-('features/Conv2d_12_pointwise/BatchNorm/beta','model.24.1.bias'          ),  \
-('features/Conv2d_12_pointwise/BatchNorm/moving_mean','model.24.1.running_mean'  ),  \
-('features/Conv2d_12_pointwise/BatchNorm/moving_variance','model.24.1.running_var'   ),  \
-('features/Conv2d_12_pointwise/BatchNorm/gamma','model.24.1.weight'        ),  \
-('features/Conv2d_13_depthwise/depthwise_weights','model.25.0.weight'        ),  \
-('features/Conv2d_13_depthwise/BatchNorm/beta','model.25.1.bias'          ),  \
-('features/Conv2d_13_depthwise/BatchNorm/moving_mean','model.25.1.running_mean'  ),  \
-('features/Conv2d_13_depthwise/BatchNorm/moving_variance','model.25.1.running_var'   ),  \
-('features/Conv2d_13_depthwise/BatchNorm/gamma','model.25.1.weight'        ),  \
-('features/Conv2d_13_pointwise/weights','model.26.0.weight'        ),  \
-('features/Conv2d_13_pointwise/BatchNorm/beta','model.26.1.bias'          ),  \
-('features/Conv2d_13_pointwise/BatchNorm/moving_mean','model.26.1.running_mean'  ),  \
-('features/Conv2d_13_pointwise/BatchNorm/moving_variance','model.26.1.running_var'   ),  \
-('features/Conv2d_13_pointwise/BatchNorm/gamma','model.26.1.weight'        ),  \
+('features/Conv2d_0/weights','model.0.1.weight'         ),  \
+('features/Conv2d_0/BatchNorm/beta','model.0.2.bias'      ),\
+('features/Conv2d_0/BatchNorm/moving_mean','model.0.2.running_mean'   ),  \
+('features/Conv2d_0/BatchNorm/moving_variance','model.0.2.running_var'    ),  \
+('features/Conv2d_0/BatchNorm/gamma','model.0.2.weight'        ),\
+('features/Conv2d_1_depthwise/depthwise_weights','model.1.1.weight' ),\
+('features/Conv2d_1_depthwise/BatchNorm/beta','model.1.2.bias' ),\
+('features/Conv2d_1_depthwise/BatchNorm/moving_mean','model.1.2.running_mean'   ),  \
+('features/Conv2d_1_depthwise/BatchNorm/moving_variance','model.1.2.running_var'    ),  \
+('features/Conv2d_1_depthwise/BatchNorm/gamma','model.1.2.weight'         ),  \
+('features/Conv2d_1_pointwise/weights','model.2.1.weight'         ),  \
+('features/Conv2d_1_pointwise/BatchNorm/beta','model.2.2.bias'           ),  \
+('features/Conv2d_1_pointwise/BatchNorm/moving_mean','model.2.2.running_mean'   ),  \
+('features/Conv2d_1_pointwise/BatchNorm/moving_variance','model.2.2.running_var'    ),  \
+('features/Conv2d_1_pointwise/BatchNorm/gamma','model.2.2.weight'         ),  \
+('features/Conv2d_2_depthwise/depthwise_weights','model.3.1.weight'         ),  \
+('features/Conv2d_2_depthwise/BatchNorm/beta','model.3.2.bias'           ),  \
+('features/Conv2d_2_depthwise/BatchNorm/moving_mean','model.3.2.running_mean'   ),  \
+('features/Conv2d_2_depthwise/BatchNorm/moving_variance','model.3.2.running_var'    ),  \
+('features/Conv2d_2_depthwise/BatchNorm/gamma','model.3.2.weight'         ),  \
+('features/Conv2d_2_pointwise/weights','model.4.1.weight'         ),  \
+('features/Conv2d_2_pointwise/BatchNorm/beta','model.4.2.bias'           ),  \
+('features/Conv2d_2_pointwise/BatchNorm/moving_mean','model.4.2.running_mean'   ),  \
+('features/Conv2d_2_pointwise/BatchNorm/moving_variance','model.4.2.running_var'    ),  \
+('features/Conv2d_2_pointwise/BatchNorm/gamma','model.4.2.weight'         ),  \
+('features/Conv2d_3_depthwise/depthwise_weights','model.5.1.weight'         ),  \
+('features/Conv2d_3_depthwise/BatchNorm/beta','model.5.2.bias'           ),  \
+('features/Conv2d_3_depthwise/BatchNorm/moving_mean','model.5.2.running_mean'   ),  \
+('features/Conv2d_3_depthwise/BatchNorm/moving_variance','model.5.2.running_var'    ),  \
+('features/Conv2d_3_depthwise/BatchNorm/gamma','model.5.2.weight'         ),  \
+('features/Conv2d_3_pointwise/weights','model.6.1.weight'         ),  \
+('features/Conv2d_3_pointwise/BatchNorm/beta','model.6.2.bias'           ),  \
+('features/Conv2d_3_pointwise/BatchNorm/moving_mean','model.6.2.running_mean'   ),  \
+('features/Conv2d_3_pointwise/BatchNorm/moving_variance','model.6.2.running_var'    ),  \
+('features/Conv2d_3_pointwise/BatchNorm/gamma','model.6.2.weight'         ),  \
+('features/Conv2d_4_depthwise/depthwise_weights','model.7.1.weight'         ),  \
+('features/Conv2d_4_depthwise/BatchNorm/beta','model.7.2.bias'           ),  \
+('features/Conv2d_4_depthwise/BatchNorm/moving_mean','model.7.2.running_mean'   ),  \
+('features/Conv2d_4_depthwise/BatchNorm/moving_variance','model.7.2.running_var'    ),  \
+('features/Conv2d_4_depthwise/BatchNorm/gamma','model.7.2.weight'         ),  \
+('features/Conv2d_4_pointwise/weights','model.8.1.weight'         ),  \
+('features/Conv2d_4_pointwise/BatchNorm/beta','model.8.2.bias'           ),  \
+('features/Conv2d_4_pointwise/BatchNorm/moving_mean','model.8.2.running_mean'   ),  \
+('features/Conv2d_4_pointwise/BatchNorm/moving_variance','model.8.2.running_var'    ),  \
+('features/Conv2d_4_pointwise/BatchNorm/gamma','model.8.2.weight'         ),  \
+('features/Conv2d_5_depthwise/depthwise_weights','model.9.1.weight'         ),  \
+('features/Conv2d_5_depthwise/BatchNorm/beta','model.9.2.bias'           ),  \
+('features/Conv2d_5_depthwise/BatchNorm/moving_mean','model.9.2.running_mean'   ),  \
+('features/Conv2d_5_depthwise/BatchNorm/moving_variance','model.9.2.running_var'    ),  \
+('features/Conv2d_5_depthwise/BatchNorm/gamma','model.9.2.weight'         ),  \
+('features/Conv2d_5_pointwise/weights','model.10.1.weight'        ),  \
+('features/Conv2d_5_pointwise/BatchNorm/beta','model.10.2.bias'          ),  \
+('features/Conv2d_5_pointwise/BatchNorm/moving_mean','model.10.2.running_mean'  ),  \
+('features/Conv2d_5_pointwise/BatchNorm/moving_variance','model.10.2.running_var'   ),  \
+('features/Conv2d_5_pointwise/BatchNorm/gamma','model.10.2.weight'        ),  \
+('features/Conv2d_6_depthwise/depthwise_weights','model.11.1.weight'        ),  \
+('features/Conv2d_6_depthwise/BatchNorm/beta','model.11.2.bias'          ),  \
+('features/Conv2d_6_depthwise/BatchNorm/moving_mean','model.11.2.running_mean'  ),  \
+('features/Conv2d_6_depthwise/BatchNorm/moving_variance','model.11.2.running_var'   ),  \
+('features/Conv2d_6_depthwise/BatchNorm/gamma','model.11.2.weight'        ),  \
+('features/Conv2d_6_pointwise/weights','model.12.1.weight'        ),  \
+('features/Conv2d_6_pointwise/BatchNorm/beta','model.12.2.bias'          ),  \
+('features/Conv2d_6_pointwise/BatchNorm/moving_mean','model.12.2.running_mean'  ),  \
+('features/Conv2d_6_pointwise/BatchNorm/moving_variance','model.12.2.running_var'   ),  \
+('features/Conv2d_6_pointwise/BatchNorm/gamma','model.12.2.weight'        ),  \
+('features/Conv2d_7_depthwise/depthwise_weights','model.13.1.weight'        ),  \
+('features/Conv2d_7_depthwise/BatchNorm/beta','model.13.2.bias'          ),  \
+('features/Conv2d_7_depthwise/BatchNorm/moving_mean','model.13.2.running_mean'  ),  \
+('features/Conv2d_7_depthwise/BatchNorm/moving_variance','model.13.2.running_var'   ),  \
+('features/Conv2d_7_depthwise/BatchNorm/gamma','model.13.2.weight'        ),  \
+('features/Conv2d_7_pointwise/weights','model.14.1.weight'        ),  \
+('features/Conv2d_7_pointwise/BatchNorm/beta','model.14.2.bias'          ),  \
+('features/Conv2d_7_pointwise/BatchNorm/moving_mean','model.14.2.running_mean'  ),  \
+('features/Conv2d_7_pointwise/BatchNorm/moving_variance','model.14.2.running_var'   ),  \
+('features/Conv2d_7_pointwise/BatchNorm/gamma','model.14.2.weight'        ),  \
+('features/Conv2d_8_depthwise/depthwise_weights','model.15.1.weight'        ),  \
+('features/Conv2d_8_depthwise/BatchNorm/beta','model.15.2.bias'          ),  \
+('features/Conv2d_8_depthwise/BatchNorm/moving_mean','model.15.2.running_mean'  ),  \
+('features/Conv2d_8_depthwise/BatchNorm/moving_variance','model.15.2.running_var'   ),  \
+('features/Conv2d_8_depthwise/BatchNorm/gamma','model.15.2.weight'        ),  \
+('features/Conv2d_8_pointwise/weights','model.16.1.weight'        ),  \
+('features/Conv2d_8_pointwise/BatchNorm/beta','model.16.2.bias'          ),  \
+('features/Conv2d_8_pointwise/BatchNorm/moving_mean','model.16.2.running_mean'  ),  \
+('features/Conv2d_8_pointwise/BatchNorm/moving_variance','model.16.2.running_var'   ),  \
+('features/Conv2d_8_pointwise/BatchNorm/gamma','model.16.2.weight'        ),  \
+('features/Conv2d_9_depthwise/depthwise_weights','model.17.1.weight'        ),  \
+('features/Conv2d_9_depthwise/BatchNorm/beta','model.17.2.bias'          ),  \
+('features/Conv2d_9_depthwise/BatchNorm/moving_mean','model.17.2.running_mean'  ),  \
+('features/Conv2d_9_depthwise/BatchNorm/moving_variance','model.17.2.running_var'   ),  \
+('features/Conv2d_9_depthwise/BatchNorm/gamma','model.17.2.weight'        ),  \
+('features/Conv2d_9_pointwise/weights','model.18.1.weight'        ),  \
+('features/Conv2d_9_pointwise/BatchNorm/beta','model.18.2.bias'          ),  \
+('features/Conv2d_9_pointwise/BatchNorm/moving_mean','model.18.2.running_mean'  ),  \
+('features/Conv2d_9_pointwise/BatchNorm/moving_variance','model.18.2.running_var'   ),  \
+('features/Conv2d_9_pointwise/BatchNorm/gamma','model.18.2.weight'        ),  \
+('features/Conv2d_10_depthwise/depthwise_weights','model.19.1.weight'        ),  \
+('features/Conv2d_10_depthwise/BatchNorm/beta','model.19.2.bias'          ),  \
+('features/Conv2d_10_depthwise/BatchNorm/moving_mean','model.19.2.running_mean'  ),  \
+('features/Conv2d_10_depthwise/BatchNorm/moving_variance','model.19.2.running_var'   ),  \
+('features/Conv2d_10_depthwise/BatchNorm/gamma','model.19.2.weight'        ),  \
+('features/Conv2d_10_pointwise/weights','model.20.1.weight'        ),  \
+('features/Conv2d_10_pointwise/BatchNorm/beta','model.20.2.bias'          ),  \
+('features/Conv2d_10_pointwise/BatchNorm/moving_mean','model.20.2.running_mean'  ),  \
+('features/Conv2d_10_pointwise/BatchNorm/moving_variance','model.20.2.running_var'   ),  \
+('features/Conv2d_10_pointwise/BatchNorm/gamma','model.20.2.weight'        ),  \
+('features/Conv2d_11_depthwise/depthwise_weights','model.21.1.weight'        ),  \
+('features/Conv2d_11_depthwise/BatchNorm/beta','model.21.2.bias'          ),  \
+('features/Conv2d_11_depthwise/BatchNorm/moving_mean','model.21.2.running_mean'  ),  \
+('features/Conv2d_11_depthwise/BatchNorm/moving_variance','model.21.2.running_var'   ),  \
+('features/Conv2d_11_depthwise/BatchNorm/gamma','model.21.2.weight'        ),  \
+('features/Conv2d_11_pointwise/weights','model.22.1.weight'        ),  \
+('features/Conv2d_11_pointwise/BatchNorm/beta','model.22.2.bias'          ),  \
+('features/Conv2d_11_pointwise/BatchNorm/moving_mean','model.22.2.running_mean'  ),  \
+('features/Conv2d_11_pointwise/BatchNorm/moving_variance','model.22.2.running_var'   ),  \
+('features/Conv2d_11_pointwise/BatchNorm/gamma','model.22.2.weight'        ),  \
+('features/Conv2d_12_depthwise/depthwise_weights','model.23.1.weight'        ),  \
+('features/Conv2d_12_depthwise/BatchNorm/beta','model.23.2.bias'          ),  \
+('features/Conv2d_12_depthwise/BatchNorm/moving_mean','model.23.2.running_mean'  ),  \
+('features/Conv2d_12_depthwise/BatchNorm/moving_variance','model.23.2.running_var'   ),  \
+('features/Conv2d_12_depthwise/BatchNorm/gamma','model.23.2.weight'        ),  \
+('features/Conv2d_12_pointwise/weights','model.24.1.weight'        ),  \
+('features/Conv2d_12_pointwise/BatchNorm/beta','model.24.2.bias'          ),  \
+('features/Conv2d_12_pointwise/BatchNorm/moving_mean','model.24.2.running_mean'  ),  \
+('features/Conv2d_12_pointwise/BatchNorm/moving_variance','model.24.2.running_var'   ),  \
+('features/Conv2d_12_pointwise/BatchNorm/gamma','model.24.2.weight'        ),  \
+('features/Conv2d_13_depthwise/depthwise_weights','model.25.1.weight'        ),  \
+('features/Conv2d_13_depthwise/BatchNorm/beta','model.25.2.bias'          ),  \
+('features/Conv2d_13_depthwise/BatchNorm/moving_mean','model.25.2.running_mean'  ),  \
+('features/Conv2d_13_depthwise/BatchNorm/moving_variance','model.25.2.running_var'   ),  \
+('features/Conv2d_13_depthwise/BatchNorm/gamma','model.25.2.weight'        ),  \
+('features/Conv2d_13_pointwise/weights','model.26.1.weight'        ),  \
+('features/Conv2d_13_pointwise/BatchNorm/beta','model.26.2.bias'          ),  \
+('features/Conv2d_13_pointwise/BatchNorm/moving_mean','model.26.2.running_mean'  ),  \
+('features/Conv2d_13_pointwise/BatchNorm/moving_variance','model.26.2.running_var'   ),  \
+('features/Conv2d_13_pointwise/BatchNorm/gamma','model.26.2.weight'        ),  \
 ])
 
 
@@ -214,6 +214,8 @@ def preload_mobilenet_tf(model, input_size, depth_multiplier):
 	var_to_shape_map = reader.get_variable_to_shape_map()
 	var_dict = {k:reader.get_tensor(k) for k in var_to_shape_map.keys()}
 
+
+
 	# Take PyTorch Model
 	x = model.state_dict()
 
@@ -254,6 +256,8 @@ def preload_mobilenet_tf(model, input_size, depth_multiplier):
 	for k in set(var_dict.keys()) - set(x.keys()):
 	    del var_dict[k]
 
+
+
 	for k in list(var_dict.keys()):
 	    if x[k].shape != var_dict[k].shape:
 	       print(k, 'Error')
@@ -269,7 +273,7 @@ def preload_mobilenet_tf(model, input_size, depth_multiplier):
 	var_dict['fc.bias'] = org_bias.narrow(0,START,1000)
 
 	# load model
-	model.load_state_dict(var_dict, strict=False)
+	model.load_state_dict(var_dict, strict=True)
 
 
 	print('Model Pretrained Loaded')

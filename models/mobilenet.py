@@ -9,6 +9,7 @@
 # https://github.com/marvis/pytorch-mobilenet/blob/master/main.py
 #
 
+import PIL
 import torch.nn as nn
 import torch.utils.model_zoo as model_zoo
 import math
@@ -21,30 +22,28 @@ from .preload_mobilenet import preload_mobilenet_tf
 
 ###### Full Precision Blocks #############
 def conv_dw(inp, oup, stride, pad1=0, bias_ena=False):
-    if pad1 == 1:
-        return nn.Sequential(
-            nn.ConstantPad2d(1, -1), 
-            nn.Conv2d(inp, inp, 3, stride, 0, groups=inp, bias=bias_ena),
-            nn.BatchNorm2d(inp),
-            nn.ReLU6(inplace=False)
-        )
-    else:
-        return nn.Sequential(
-            nn.Conv2d(inp, inp, 3, stride, 1, groups=inp, bias=bias_ena),
-            nn.BatchNorm2d(inp),
-            nn.ReLU6(inplace=False)
-        )
+    padding = (1,1,1,1) if stride==1 else (0,1,0,1)
+    return nn.Sequential(
+        nn.ZeroPad2d(padding),
+        nn.Conv2d(inp, inp, 3, stride, 0, groups=inp, bias=bias_ena),
+        nn.BatchNorm2d(inp),
+        nn.ReLU6(inplace=False)
+    )
 
 def conv_pw(inp, oup, stride,bias_ena=False):
+    padding = (0,0,0,0)
     return nn.Sequential(
+        nn.ZeroPad2d(padding),
         nn.Conv2d(inp, oup, 1, 1, 0, bias=bias_ena),
         nn.BatchNorm2d(oup),
         nn.ReLU6(inplace=False)
     )
 
 def conv_bn(inp, oup, stride):
+    padding = (1,1,1,1) if stride==1 else (0,1,0,1)
     return nn.Sequential(
-        nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
+        nn.ZeroPad2d(padding),
+        nn.Conv2d(inp, oup, 3, stride, 0, bias=False),
         nn.BatchNorm2d(oup),
         nn.ReLU6(inplace=False)
     )
@@ -137,30 +136,24 @@ class mobilenet_real(nn.Module):
         self.fc = nn.Linear( int(width_mult*1024), 1000) 
 
         self.regime = {
-            0: {'optimizer': 'SGD', 'lr': 1e-1,
-                'weight_decay': 1e-4, 'momentum': 0.9},
-            10: {'lr': 5e-2},
-            20: {'lr': 1e-2}, #, 'weight_decay': 0},
-            30: {'lr': 5e-3},
-            40: {'lr': 1e-3},
-            50: {'lr': 5e-4},
-            60: {'lr': 1e-4}
+            0: {'optimizer': 'Adam', 'lr': 1e-4 },
+            5: {'lr': 5e-5},
+            8: {'lr': 1e-5 }
         }
-
 
         #prepocessing
         normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 
         self.input_transform = {
             'train': transforms.Compose([
-                transforms.Scale(crop_size),
+                transforms.Scale(crop_size), #, interpolation=PIL.Image.BILINEAR),
                 transforms.RandomCrop(input_dim),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 normalize
             ]),
             'eval': transforms.Compose([
-                transforms.Scale(crop_size),
+                transforms.Scale(crop_size), #, interpolation=PIL.Image.BILINEAR),
                 transforms.CenterCrop(input_dim),
                 transforms.ToTensor(),
                 normalize
@@ -169,7 +162,7 @@ class mobilenet_real(nn.Module):
 
     def forward(self, x):
         x = self.model(x)
-        x = x.view(-1, int(self.width_mult*1024))
+        x = x.flatten(1)
         x = self.fc(x)
         return x
 
@@ -248,14 +241,14 @@ class mobilenet_quant_devel(nn.Module):
 
         self.input_transform = {
             'train': transforms.Compose([
-                transforms.Scale(crop_size),
+                transforms.Resize(crop_size, 3),
                 transforms.RandomCrop(input_dim),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 normalize
             ]),
             'eval': transforms.Compose([
-                transforms.Scale(crop_size),
+                transforms.Resize(crop_size, 3),
                 transforms.CenterCrop(input_dim),
                 transforms.ToTensor(),
                 normalize
@@ -264,7 +257,7 @@ class mobilenet_quant_devel(nn.Module):
 
     def forward(self, x):
         x = self.model(x)
-        x = x.view(-1, int(self.width_mult*1024))
+        x = x.flatten(1)
         x = F.dropout(x, 0.2, self.training)
         x = self.fc(x)
         return x
@@ -282,5 +275,8 @@ def mobilenet(type_quant= None, activ_bits =None, weight_bits= None, activ_type=
       return model
 
     else:
-      return mobilenet_real(width_mult, input_dim)
+      model =  mobilenet_real(width_mult, input_dim)
+      preload_mobilenet_tf( model , input_dim, width_mult)
+
+      return model
 
