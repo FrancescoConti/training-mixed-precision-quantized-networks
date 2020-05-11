@@ -23,9 +23,13 @@ from quantization.quant_auto import memory_driven_quant
 from tqdm import tqdm
 import nemo
 import warnings
+import math
+import copy
+import collections 
 
 # filter out ImageNet EXIF warnings
 warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
+warnings.filterwarnings("ignore", "Metadata Warning", UserWarning)
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__")
@@ -62,7 +66,7 @@ parser.add_argument('-b', '--batch-size', default=256, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--optimizer', default='SGD', type=str, metavar='OPT',
                     help='optimizer function used')
-parser.add_argument('--lr', '--learning_rate', default=0.1, type=float,
+parser.add_argument('--lr', '--learning_rate', default=1e-4, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
@@ -70,42 +74,42 @@ parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 parser.add_argument('--print-freq', '-p', default=100, type=int,
                     metavar='N', help='print frequency (default: 10)')
-parser.add_argument('--resume', default='', type=str, metavar='PATH',
+parser.add_argument('--resume', default=None, type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 parser.add_argument('-e', '--evaluate', action='store_true',
                     help='run model on validation set')
 parser.add_argument('--save_check', action='store_true',
                     help='saving the checkpoint')
-#binarization parameters
-parser.add_argument('--quantizer', action='store_true',
-                    help='using the quantizer flow')
+parser.add_argument('--terminal', action='store_true')
+# quantization parameters
+parser.add_argument('--quantize', action='store_true',
+                    help='quantize the network')
 parser.add_argument('--type_quant', default=None,
                     help='Type of binarization process')
 parser.add_argument('--weight_bits', default=1,
                     help='Number of bits for the weights')
 parser.add_argument('--activ_bits', default=1,
                     help='Number of bits for the activations')
-parser.add_argument('--activ_type', default='hardtanh',
-                    help='Type of the quantized activation layers')
 
-parser.add_argument('--batch_fold_delay', default=0, type=int, 
-                    help='Apply folding of batch layers into convolutional')
-parser.add_argument('--batch_fold_type', default='folding_weights', type=str, 
-                    help='Type of folding for batch norm layers: folding_weights | ICN')
+parser.add_argument('--initial_folding', default=False, action='store_true',
+                    help='Fold BNs into Linear layers before training')
+parser.add_argument('--initial_equalization', default=False, action='store_true',
+                    help='Perform Linear layer weight equalization before training')
 parser.add_argument('--quant_add_config', default='', type=str, 
                     help='Additional config of per-layer quantization')
 
-#mobilenet params
+# mobilenet params
 parser.add_argument('--mobilenet_width', default=1.0, type=float,
                     help='Mobilenet Width Muliplier')
 parser.add_argument('--mobilenet_input', default=224, type=int,
                     help='Mobilenet input resolution ')
 
-#mixed-precision params
+# mixed-precision params
 parser.add_argument('--mem_constraint', default='', type=str,
                     help='Memory constraints for automatic bitwidth quantization')
 parser.add_argument('--mixed_prec_quant', default='MixPL', type=str, 
                     help='Type of quantization for mixed-precision low bitwidth: MixPL | MixPC')
+parser.add_argument('--mixed_prec_dict', default=None, type=str)
 
 
 def main():
@@ -143,8 +147,7 @@ def main():
     model = models.__dict__[args.model]
     nClasses = get_num_classes(args.dataset)
     model_config = {'input_size': args.input_size, 'dataset': args.dataset, 'num_classes': nClasses, \
-                    'type_quant': args.type_quant, 'weight_bits': weight_bits, 'activ_bits': activ_bits,\
-                    'activ_type': args.activ_type, 'width_mult': float(args.mobilenet_width), 'input_dim': float(args.mobilenet_input) }
+                    'width_mult': float(args.mobilenet_width), 'input_dim': float(args.mobilenet_input) }
 
     if args.model_config is not '':
         model_config = dict(model_config, **literal_eval(args.model_config))
@@ -191,100 +194,205 @@ def main():
     params_dict = dict(model.named_parameters())
     params = []
     for key, value in params_dict.items():
-        if 'clip_val' in key:
-            params += [{'params':value,'weight_decay': 1e-4}]
+        if 'alpha' in key or 'beta' in key:
+            params += [{'params':value, 'weight_decay': 1e-4}]
         else:
-            params += [{'params':value}]
-    optimizer = torch.optim.Adam(params, lr=1e-4)
-    logging.info('training regime: %s', regime)
+            params += [{'params':value, 'weight_decay': 1e-5}]
 
-    quantizer = None
-
+    mixed_prec_dict = None
+    if args.mixed_prec_dict is not None:
+        mixed_prec_dict = nemo.utils.precision_dict_from_json(args.mixed_prec_dict)
+        print("Load mixed precision dict from outside")
+    elif args.mem_constraint is not '':
+        mem_contraints = json.loads(args.mem_constraint)
+        print('This is the memory constraint:', mem_contraints )
+        if mem_contraints is not None:
+            x_test = torch.Tensor(1,3,args.mobilenet_input,args.mobilenet_input)
+            mixed_prec_dict = memory_driven_quant(model, x_test, mem_contraints[0], mem_contraints[1], args.mixed_prec_quant)
+    
     #multi gpus
     if args.gpus and len(args.gpus) > 1:
         model = torch.nn.DataParallel(model).cuda()
     else:
         model.type(args.type)
 
-
-    if args.resume:
-        checkpoint_file = args.resume
-        if os.path.isdir(checkpoint_file):
-            checkpoint_file = os.path.join(
-                checkpoint_file, 'model_best.pth.tar')
-        if os.path.isfile(checkpoint_file):
-            logging.info("loading checkpoint '%s'", args.resume)
-            checkpoint_loaded = torch.load(checkpoint_file)
-            checkpoint = checkpoint_loaded['state_dict']
-            model.load_state_dict(checkpoint, strict=False)
-            print('Model pretrained')
-        else:
-            logging.error("no checkpoint found at '%s'", args.resume)
-
-    if args.evaluate:
-        # evaluate on validation set
-        val_quant_loss, val_quant_prec1, val_quant_prec5 = 0, 0, 0
-
-        val_loss, val_prec1, val_prec5 = validate(
-           val_loader, model, criterion, 0, quantizer)
-
-        logging.info('\n This is the results from evaluation only: ' 
-                     'Validation Prec@1 {val_prec1:.3f} \t'
-                     'Validation Prec@5 {val_prec5:.3f} \t'
-                     'Validation Quant Prec@1 {val_quant_prec1:.3f} \t'
-                     'Validation Quant Prec@5 {val_quant_prec5:.3f} \n'
-                     .format(val_prec1=val_prec1, val_prec5=val_prec5,
-                     val_quant_prec1=val_quant_prec1, val_quant_prec5=val_quant_prec5))
-        exit(0)
-
     mobilenet_width = float(args.mobilenet_width)
+    mobilenet_width_s = args.mobilenet_width
     mobilenet_input = int(args.mobilenet_input) 
-    val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(val_loader, model, criterion, 0, None)
-    print("[NEMO] Full-precision model: top-1=%.2f top-5=%.2f" % (val_quant_prec1, val_quant_prec5))   
-    if args.quantizer:
-        print("[NEMO] Model calibration")
+
+    # if args.resume is None:
+    #     val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None)
+    #     print("[NEMO] Full-precision model: top-1=%.2f top-5=%.2f" % (val_prec1, val_prec5))   
+
+    if args.quantize:
+
+        # transform the model in a NEMO FakeQuantized representation
         model = nemo.transform.quantize_pact(model, dummy_input=torch.randn((1,3,mobilenet_input,mobilenet_input)).to('cuda'))
-        model.change_precision(bits=20)
-        model.reset_alpha_weights()
-        
-        FOLD  = False
-        EQUNF = False
-        if FOLD:
-            model.fold_bn()
-            # use DFQ for weight equalization
-            model.equalize_weights_dfq()
-        elif EQUNF:
-            model.equalize_weights_unfolding()
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
 
-        # calibrate after equalization
-        with model.statistics_act():
-            val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(val_loader, model, criterion, 0, None)
+        if args.resume is not None:
+            checkpoint_file = args.resume
+            if os.path.isfile(checkpoint_file):
+                logging.info("loading checkpoint '%s'", args.resume)
+                checkpoint_loaded = torch.load(checkpoint_file)
+                checkpoint = checkpoint_loaded['state_dict']
+                model.load_state_dict(checkpoint, strict=True)
+                prec_dict = checkpoint_loaded.get('precision')
+            else:
+                logging.error("no checkpoint found at '%s'", args.resume)
+                import sys; sys.exit(1)
 
-        # use this in place of the usual calibration, because PACT_Act's descend from ReLU6 and
-        # the trained weights already assume the presence of a clipping effect
-        # this should be integrated in NEMO by saving the "origin" of the PACT_Act!
-        for i in range(0,27):
-            model.model[i][3].alpha.data[:] = min(model.model[i][3].alpha.item(), model.model[i][3].max)
+        if args.resume is None:
+            print("[NEMO] Model calibration")
+            model.change_precision(bits=20)
+            model.reset_alpha_weights()
+            
+            if args.initial_folding:
+                model.fold_bn()
+                # use DFQ for weight equalization
+                if args.initial_equalization:
+                    model.equalize_weights_dfq()
+            elif args.initial_equalization:
+                model.equalize_weights_lsq(verbose=True)
+                model.reset_alpha_weights()
+#                model.reset_alpha_weights(use_method='dyn_range', dyn_range_cutoff=0.05, verbose=True)
 
-        val_quant_loss, val_quant_prec1, val_quant_prec5 = validate(val_loader, model, criterion, 0, None)
+            # calibrate after equalization
+            with model.statistics_act():
+                val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None)
+
+            # # use this in place of the usual calibration, because PACT_Act's descend from ReLU6 and
+            # # the trained weights already assume the presence of a clipping effect
+            # # this should be integrated in NEMO by saving the "origin" of the PACT_Act!
+            # for i in range(0,27):
+            #     model.model[i][3].alpha.data[:] = min(model.model[i][3].alpha.item(), model.model[i][3].max)
+
+            val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None)
  
-        print("[NEMO] 20-bit model: top-1=%.2f top-5=%.2f" % (val_quant_prec1, val_quant_prec5))   
-        nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_quant_prec1, checkpoint_name='mobilenet_%.1f_%d_calibrated' % (mobilenet_width, mobilenet_input), checkpoint_suffix='')
+            print("[NEMO] 20-bit calibrated model: top-1=%.2f top-5=%.2f" % (val_prec1, val_prec5))   
+            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_prec1, checkpoint_name='mobilenet_%s_%d_calibrated' % (mobilenet_width_s, mobilenet_input), checkpoint_suffix='')
 
-        model.change_precision(bits=8)
-        model.change_precision(bits=7, scale_activations=False)
+            model.change_precision(bits=activ_bits)
+            model.change_precision(bits=weight_bits, scale_activations=False)
+
+        else:
+            print("[NEMO] Not calibrating model, as it is pretrained")
+            model.change_precision(bits=1, min_prec_dict=prec_dict)
+
+            ### val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None) 
+            ### print("[NEMO] pretrained model: top-1=%.2f top-5=%.2f" % (val_prec1, val_prec5))
+
+        if mixed_prec_dict is not None:
+            mixed_prec_dict_all = model.export_precision()
+            for k in mixed_prec_dict.keys():
+                mixed_prec_dict_all[k] = mixed_prec_dict[k]
+            model.change_precision(bits=1, min_prec_dict=mixed_prec_dict_all)
+
+            # freeze and quantize BN parameters
+            # nemo.transform.bn_quantizer(model, precision=nemo.precision.Precision(bits=20))
+            # model.freeze_bn()
+            # model.fold_bn()
+            # model.equalize_weights_dfq(verbose=True)
+            val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None)
+
+#            print("[NEMO] Rounding weights")
+#            model.round_weights()
+
+    if args.terminal:
+        fqs = copy.deepcopy(model.state_dict())
+        model.freeze_bn(reset_stats=True, disable_grad=True)
+        bin_fq, bout_fq, _ = nemo.utils.get_intermediate_activations(model, validate, val_loader, model, criterion, 0, None, shorten=1)
+
+        torch.save({'in': bin_fq['model.0.0'][0]}, "input_fq.pth")
+
+        val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None)
+        print("[NEMO] FQ model: top-1=%.2f top-5=%.2f" % (val_prec1, val_prec5))
+       
+        input_bias_dict  = {} #{'model.0.0' : +1.0, 'model.0.1' : +1.0}
+        remove_bias_dict = {} #{'model.0.1' : 'model.0.2'}
+        input_bias       = 0. #math.floor(1.0 / (2./255)) * (2./255)
+
+        model.qd_stage(eps_in=2./255, add_input_bias_dict=input_bias_dict, remove_bias_dict=remove_bias_dict, precision=nemo.precision.Precision(bits=20), int_accurate=True)
+        # model.round_weights()
+        # model.harden_weights()
+        # fix ConstantPad2d
+#        model.model[0][0].value = input_bias
+
+#        val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None, input_bias=input_bias)
+#        print("[NEMO] QD model: top-1=%.2f top-5=%.2f" % (val_prec1, val_prec5))
+
+        qds = copy.deepcopy(model.state_dict())
+        bin_qd, bout_qd, _ = nemo.utils.get_intermediate_activations(model, validate, val_loader, model, criterion, 0, None, input_bias=input_bias, shorten=1)
+        import IPython; IPython.embed()
+
+        torch.save({'qds': qds, 'fqs': fqs}, "states.pth")
+        torch.save({'in': bin_qd['model.0.0'][0]}, "input_qd.pth")
+
+        diff = collections.OrderedDict()
+        for k in bout_fq.keys():
+            diff[k] = (bout_fq[k] - bout_qd[k]).to('cpu').abs()
+
+        for i in range(0,26):
+            for j in range(3,4):
+                k  = 'model.%d.%d' % (i,j)
+                kn = 'model.%d.%d' % (i if j<3 else i+1, j+1 if j<3 else 0)
+                eps = model.get_eps_at(kn, eps_in=2./255)[0]
+                print("%s:" % k)
+                idx = diff[k]>eps
+                n = idx.sum()
+                t = (diff[k]>-1e9).sum()
+                max_eps = torch.ceil(diff[k].max() / model.get_eps_at('model.%d.0' % (i+1), 2./255)[0]).item()
+                mean_eps = torch.ceil(diff[k][idx].mean() / model.get_eps_at('model.%d.0' % (i+1), 2./255)[0]).item()
+                try:
+                    print("  max:   %.3f (%d eps)" % (diff[k].max().item(), max_eps))
+                    print("  mean:  %.3f (%d eps) (only diff. elements)" % (diff[k][idx].mean().item(), mean_eps))
+                    print("  #diff: %d/%d (%.1f%%)" % (n, t, float(n)/float(t)*100)) 
+                except ValueError:
+                    print("  #diff: 0/%d (0%%)" % (t,)) 
+
+        model.id_stage()
+        # fix ConstantPad2d
+        model.model[0][0].value = input_bias / (2./255)
+
+        ids = model.state_dict()
+        bin_id, bout_id, _ = nemo.utils.get_intermediate_activations(model, validate, val_loader, model, criterion, 0, None, input_bias=input_bias, shorten=1, eps_in=2./255) 
+
+        torch.save({'in': bin_fq['model.0.0'][0]}, "input_id.pth")
+
+        diff = collections.OrderedDict()
+        for i in range(0,26):
+            for j in range(3,4):
+                k  = 'model.%d.%d' % (i,j)
+                kn = 'model.%d.%d' % (i if j<3 else i+1, j+1 if j<3 else 0)
+                eps = model.get_eps_at(kn, eps_in=2./255)[0]
+                diff[k] = (bout_id[k]*eps - bout_qd[k]).to('cpu').abs()
+                print("%s:" % k)
+                idx = diff[k]>=eps
+                n = idx.sum()
+                t = (diff[k]>-1e9).sum()
+                max_eps  = torch.ceil(diff[k].max() / eps).item()
+                mean_eps = torch.ceil(diff[k][idx].mean() / eps).item()
+                try:
+                    print("  max:   %.3f (%d eps)" % (diff[k].max().item(), max_eps))
+                    print("  mean:  %.3f (%d eps) (only diff. elements)" % (diff[k][idx].mean().item(), mean_eps))
+                    print("  #diff: %d/%d (%.1f%%)" % (n, t, float(n)/float(t)*100)) 
+                except ValueError:
+                    print("  #diff: 0/%d (0%%)" % (t,)) 
+
+        import IPython; IPython.embed()
+
+        val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, 0, None, input_bias=input_bias, eps_in=2./255)
+        print("[NEMO] ID model: top-1=%.2f top-5=%.2f" % (val_prec1, val_prec5))
+
+        import IPython; IPython.embed()
+        import sys; sys.exit(0)
 
     for epoch in range(args.start_epoch, args.epochs):
-        optimizer = adjust_optimizer(optimizer, epoch, regime)
-
+#        optimizer = adjust_optimizer(optimizer, epoch, regime)
+        
         # train for one epoch
-        train_loss, train_prec1, train_prec5 = train(
-            train_loader, model, criterion, epoch, optimizer, quantizer)
-
-        val_loss, val_prec1, val_prec5 = validate(
-            val_loader, model, criterion, epoch, quantizer)
-
-        val_quant_loss, val_quant_prec1, val_quant_prec5 = 0, 0, 0
+        train_loss, train_prec1, train_prec5 = train(train_loader, model, criterion, epoch, optimizer, freeze_bn=True if epoch>0 else False, absorb_bn=True if epoch==0 else False)
+        val_loss, val_prec1, val_prec5 = validate(val_loader, model, criterion, epoch)
 
         # remember best prec@1 and save checkpoint
         is_best = val_prec1 > best_prec1
@@ -292,10 +400,10 @@ def main():
           
         #save_model
         if args.save_check:
-            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_quant_prec1, checkpoint_name='mobilenet_%.1f_%d_checkpoint' % (mobilenet_width, mobilenet_input), checkpoint_suffix='')
+            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_prec1, checkpoint_name='mobilenet_%s_%d%s_checkpoint' % (mobilenet_width_s, mobilenet_input, "_mixed" if mixed_prec_dict is not None else ""), checkpoint_suffix='')
 
         if is_best:
-            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_quant_prec1, checkpoint_name='mobilenet_%.1f_%d_best' % (mobilenet_width, mobilenet_input), checkpoint_suffix='')
+            nemo.utils.save_checkpoint(model, optimizer, 0, acc=val_prec1, checkpoint_name='mobilenet_%s_%d%s_best' % (mobilenet_width_s, mobilenet_input, "_mixed" if mixed_prec_dict is not None else ""), checkpoint_suffix='')
 
         logging.info('\n Epoch: {0}\t'
                      'Training Loss {train_loss:.4f} \t'
@@ -304,24 +412,16 @@ def main():
                      'Validation Loss {val_loss:.4f} \t'
                      'Validation Prec@1 {val_prec1:.3f} \t'
                      'Validation Prec@5 {val_prec5:.3f} \t'
-                     'Validation Quant Prec@1 {val_quant_prec1:.3f} \t'
-                     'Validation Quant Prec@5 {val_quant_prec5:.3f} \n'
                      .format(epoch + 1, train_loss=train_loss, val_loss=val_loss,
                              train_prec1=train_prec1, val_prec1=val_prec1,
-                             train_prec5=train_prec5, val_prec5=val_prec5,
-                             val_quant_prec1=val_quant_prec1, val_quant_prec5=val_quant_prec5))
-
+                             train_prec5=train_prec5, val_prec5=val_prec5))
 
         results.add(epoch=epoch + 1, train_loss=train_loss, val_loss=val_loss,
                     train_error1=100 - train_prec1, val_error1=100 - val_prec1,
-                    train_error5=100 - train_prec5, val_error5=100 - val_prec5,
-                    val_quant_error1=100 - val_quant_prec1, val_quant_error5=100 - val_quant_prec5)
+                    train_error5=100 - train_prec5, val_error5=100 - val_prec5)
         results.save()
 
-
-
-
-def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=None, quantizer=None, verbose=True ):
+def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=None, quantizer=None, verbose=True, input_bias=0.0, eps_in=None, integer=False, shorten=None):
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -335,30 +435,42 @@ def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=Non
     print('Training: ',training )
 
     # input quantization
-    n_bits_inpt = 8 #retrieve from quantizer in future version
-    max_inpt, min_inpt = 1, -1 #retrieve from quantizer in future version
-    n = 2 ** n_bits_inpt - 1
-    scale_factor = n / (max_inpt - min_inpt)
+    if eps_in is None:
+        scale_factor = 1.
+        div_factor   = 1.
+    elif not integer:
+        scale_factor = 1./eps_in
+        div_factor   = 1./eps_in
+    else:
+        scale_factor = 1./eps_in
+        div_factor   = 1.
+
+    if shorten is not None:
+        length = shorten
+    else:
+        length = len(data_loader)
     
-    with tqdm(total=len(data_loader),
+    with tqdm(total=length,
           desc='Epoch     #{}'.format(epoch),
           disable=not verbose) as t:
-        for i, (inputs, target) in enumerate(data_loader):
+        for i,(inputs,target) in enumerate(data_loader):
             # measure data loading time
+            if i==length:
+                break
             data_time.update(time.time() - end)
             if args.gpus is not None:
+#                inputs = inputs.cuda(async=True)
                 target = target.cuda(async=True)
     
             with torch.no_grad():
-                input_var = Variable(inputs.type(args.type))
-                target_var = Variable(target)
+                if eps_in is None:
+                    input_var = (inputs.to('cuda') + input_bias)
+                else:
+                    # input_var = torch.floor((inputs.to('cuda') + input_bias) * scale_factor) / scale_factor
+                    input_var = (inputs.to('cuda') + input_bias) * scale_factor
+                    # input_var = torch.floor((inputs.to('cuda') + input_bias) * 255 / 2.)
 
-            # # quantization before computing output
-            # if quantizer == 'deployment':
-            #     input_var = input_var.clamp(min_inpt, max_inpt).mul(scale_factor).round()
-            # elif quantizer is not None:
-            #     input_var = input_var.clamp(min_inpt, max_inpt).mul(scale_factor).round().div(scale_factor)
-            #     quantizer.store_and_quantize(training=training )
+                target_var = target
     
             # compute output
             output = model(input_var)
@@ -377,7 +489,6 @@ def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=Non
                 # compute gradient and do SGD step
                 optimizer.zero_grad()
                 loss.backward()
-    
                 optimizer.step()
     
             # measure elapsed time
@@ -390,21 +501,26 @@ def forward(data_loader, model, criterion, epoch=0, training=True, optimizer=Non
     return losses.avg, top1.avg, top5.avg
 
 
-def train(data_loader, model, criterion, epoch, optimizer, quantizer):
+def train(data_loader, model, criterion, epoch, optimizer, quantizer=None, freeze_bn=True, absorb_bn=False, shorten=None):
     
     # switch to train mode
     model.train()
+    if freeze_bn or absorb_bn:
+        if absorb_bn:
+            print("Freezing BN statistics, but not disabling BN trained parameter gradients")
+        else:
+            print("Freezing BN statistics and disabling BN trained parameter gradients")
+        model.freeze_bn(reset_stats=True, disable_grad=freeze_bn and not absorb_bn)
     return forward(data_loader, model, criterion, epoch,
-                   training=True, optimizer=optimizer, quantizer=quantizer )
+                   training=True, optimizer=optimizer, quantizer=quantizer, shorten=shorten)
 
 
-def validate(data_loader, model, criterion, epoch, quantizer ):
+def validate(data_loader, model, criterion, epoch, quantizer=None, input_bias=0.0, eps_in=None, integer=False, shorten=None):
     
     # switch to evaluate mode
     model.eval()
     return forward(data_loader, model, criterion, epoch,
-                   training=False, optimizer=None, quantizer=quantizer)
-
+                   training=False, optimizer=None, quantizer=quantizer, input_bias=input_bias, eps_in=eps_in, shorten=shorten)
 
 if __name__ == '__main__':
     main()

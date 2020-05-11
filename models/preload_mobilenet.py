@@ -163,117 +163,117 @@ dummy_replace = OrderedDict([\
 
 
 def path_pretrained_tf(input_size, depth_multiplier):
-	folder_path = './models/mobilenet_tf/'
+    folder_path = './models/mobilenet_tf/'
 
-	if input_size == 224:
-	    if depth_multiplier == 1.0:
-	        tensorflow_model='224_1.0/mobilenet_v1_1.0_224.ckpt'
-	    elif  depth_multiplier == 0.75:
-	        tensorflow_model='224_0.75/mobilenet_v1_0.75_224.ckpt'
-	    elif depth_multiplier == 0.5:
-	        tensorflow_model='224_0.5/mobilenet_v1_0.5_224.ckpt'
-	    elif depth_multiplier == 0.25:
-	        tensorflow_model='224_0.25/mobilenet_v1_0.25_224.ckpt'
-	elif input_size == 192:
-	    if depth_multiplier == 1.0:
-	        tensorflow_model='192_1.0/mobilenet_v1_1.0_192.ckpt'
-	    elif  depth_multiplier == 0.75:
-	        tensorflow_model='192_0.75/mobilenet_v1_0.75_192.ckpt'
-	    elif depth_multiplier == 0.5:
-	        tensorflow_model='192_0.5/mobilenet_v1_0.5_192.ckpt'
-	    elif depth_multiplier == 0.25:
-	        tensorflow_model='192_0.25/mobilenet_v1_0.25_192.ckpt'
-	elif input_size == 160:
-	    if depth_multiplier == 1.0:
-	        tensorflow_model='160_1.0/mobilenet_v1_1.0_160.ckpt'
-	    elif  depth_multiplier == 0.75:
-	        tensorflow_model='160_0.75/mobilenet_v1_0.75_160.ckpt'
-	    elif depth_multiplier == 0.5:
-	        tensorflow_model='160_0.5/mobilenet_v1_0.5_160.ckpt'
-	    elif depth_multiplier == 0.25:
-	        tensorflow_model='160_0.25/mobilenet_v1_0.25_160.ckpt'
-	elif input_size == 128:
-	    if depth_multiplier == 1.0:
-	        tensorflow_model='128_1.0/mobilenet_v1_1.0_128.ckpt'
-	    elif  depth_multiplier == 0.75:
-	        tensorflow_model='128_0.75/mobilenet_v1_0.75_128.ckpt'
-	    elif depth_multiplier == 0.5:
-	        tensorflow_model='128_0.5/mobilenet_v1_0.5_128.ckpt'
-	    elif depth_multiplier == 0.25:
-	        tensorflow_model='128_0.25/mobilenet_v1_0.25_128.ckpt'
+    if input_size == 224:
+        if depth_multiplier == 1.0:
+            tensorflow_model='224_1.0/mobilenet_v1_1.0_224.ckpt'
+        elif  depth_multiplier == 0.75:
+            tensorflow_model='224_0.75/mobilenet_v1_0.75_224.ckpt'
+        elif depth_multiplier == 0.5:
+            tensorflow_model='224_0.5/mobilenet_v1_0.5_224.ckpt'
+        elif depth_multiplier == 0.25:
+            tensorflow_model='224_0.25/mobilenet_v1_0.25_224.ckpt'
+    elif input_size == 192:
+        if depth_multiplier == 1.0:
+            tensorflow_model='192_1.0/mobilenet_v1_1.0_192.ckpt'
+        elif  depth_multiplier == 0.75:
+            tensorflow_model='192_0.75/mobilenet_v1_0.75_192.ckpt'
+        elif depth_multiplier == 0.5:
+            tensorflow_model='192_0.5/mobilenet_v1_0.5_192.ckpt'
+        elif depth_multiplier == 0.25:
+            tensorflow_model='192_0.25/mobilenet_v1_0.25_192.ckpt'
+    elif input_size == 160:
+        if depth_multiplier == 1.0:
+            tensorflow_model='160_1.0/mobilenet_v1_1.0_160.ckpt'
+        elif  depth_multiplier == 0.75:
+            tensorflow_model='160_0.75/mobilenet_v1_0.75_160.ckpt'
+        elif depth_multiplier == 0.5:
+            tensorflow_model='160_0.5/mobilenet_v1_0.5_160.ckpt'
+        elif depth_multiplier == 0.25:
+            tensorflow_model='160_0.25/mobilenet_v1_0.25_160.ckpt'
+    elif input_size == 128:
+        if depth_multiplier == 1.0:
+            tensorflow_model='128_1.0/mobilenet_v1_1.0_128.ckpt'
+        elif  depth_multiplier == 0.75:
+            tensorflow_model='128_0.75/mobilenet_v1_0.75_128.ckpt'
+        elif depth_multiplier == 0.5:
+            tensorflow_model='128_0.5/mobilenet_v1_0.5_128.ckpt'
+        elif depth_multiplier == 0.25:
+            tensorflow_model='128_0.25/mobilenet_v1_0.25_128.ckpt'
 
-	return folder_path+tensorflow_model
+    return folder_path+tensorflow_model
 
 
 
 def preload_mobilenet_tf(model, input_size, depth_multiplier):
 
-	#Read TensorFlow Model
-	tensorflow_model = path_pretrained_tf(input_size, depth_multiplier)
-	reader = pywrap_tensorflow.NewCheckpointReader(tensorflow_model)
-	var_to_shape_map = reader.get_variable_to_shape_map()
-	var_dict = {k:reader.get_tensor(k) for k in var_to_shape_map.keys()}
+    #Read TensorFlow Model
+    tensorflow_model = path_pretrained_tf(input_size, depth_multiplier)
+    reader = pywrap_tensorflow.NewCheckpointReader(tensorflow_model)
+    var_to_shape_map = reader.get_variable_to_shape_map()
+    var_dict = {k:reader.get_tensor(k) for k in var_to_shape_map.keys()}
 
 
 
-	# Take PyTorch Model
-	x = model.state_dict()
+    # Take PyTorch Model
+    x = model.state_dict()
 
-	# Filtering Tensorflow params from the model
-	for k in list(var_dict.keys()):
-	    if var_dict[k].ndim == 4:
-	        if 'depthwise' in k:
-	            var_dict[k] = var_dict[k].transpose((2, 3, 0, 1)).copy(order='C')
-	        else:
-	            var_dict[k] = var_dict[k].transpose((3, 2, 0, 1)).copy(order='C')
-	    if var_dict[k].ndim == 2:
-	        var_dict[k] = var_dict[k].transpose((1, 0)).copy(order='C')
+    # Filtering Tensorflow params from the model
+    for k in list(var_dict.keys()):
+        if var_dict[k].ndim == 4:
+            if 'depthwise' in k:
+                var_dict[k] = var_dict[k].transpose((2, 3, 0, 1)).copy(order='C')
+            else:
+                var_dict[k] = var_dict[k].transpose((3, 2, 0, 1)).copy(order='C')
+        if var_dict[k].ndim == 2:
+            var_dict[k] = var_dict[k].transpose((1, 0)).copy(order='C')
 
-	for k in list(var_dict.keys()):
-	    if 'Momentum' in k or 'ExponentialMovingAverage' in k or 'RMSProp' in k or 'global_step' in k :
-	        del var_dict[k]
+    for k in list(var_dict.keys()):
+        if 'Momentum' in k or 'ExponentialMovingAverage' in k or 'RMSProp' in k or 'global_step' in k :
+            del var_dict[k]
 
-	for k in list(var_dict.keys()):
-	    if k.find('/') >= 0:
-	        var_dict['features'+k[k.find('/'):]] = var_dict[k]
-	        del var_dict[k]
+    for k in list(var_dict.keys()):
+        if k.find('/') >= 0:
+            var_dict['features'+k[k.find('/'):]] = var_dict[k]
+            del var_dict[k]
 
-	# Adapt from tensorflow to pytorch 
-	for a, b in dummy_replace.items():
-	    for k in list(var_dict.keys()):
-	        if a in k:
-	            var_dict[k.replace(a,b)] = var_dict[k]
-	            del var_dict[k]
+    # Adapt from tensorflow to pytorch 
+    for a, b in dummy_replace.items():
+        for k in list(var_dict.keys()):
+            if a in k:
+                var_dict[k.replace(a,b)] = var_dict[k]
+                del var_dict[k]
             
 #	print('In var_dict but not in x_dict')
 #	print(set(var_dict.keys()) - set(x.keys()))
 #	print('In x_dict but not in var_dict')
 #	print(set(x.keys()) - set(var_dict.keys()))
-	for k in set(x.keys()) - set(var_dict.keys()):
-	    del x[k]
+    for k in set(x.keys()) - set(var_dict.keys()):
+        del x[k]
 
-	assert len(set(x.keys()) - set(var_dict.keys())) == 0
-	for k in set(var_dict.keys()) - set(x.keys()):
-	    del var_dict[k]
-
-
-
-	for k in list(var_dict.keys()):
-	    if x[k].shape != var_dict[k].shape:
-	       print(k, 'Error')
-
-	for k in list(var_dict.keys()):
-	    var_dict[k] = torch.from_numpy(var_dict[k])
-
-	# remove 1001-th class
-	org_weight = var_dict['fc.weight'].clone()
-	org_bias = var_dict['fc.bias'].clone()
-	START = 1
-	var_dict['fc.weight'] = org_weight.narrow(0,START,1000).squeeze()
-	var_dict['fc.bias'] = org_bias.narrow(0,START,1000)
-
-	# load model
-	model.load_state_dict(var_dict, strict=True)
+    assert len(set(x.keys()) - set(var_dict.keys())) == 0
+    for k in set(var_dict.keys()) - set(x.keys()):
+        del var_dict[k]
 
 
-	print('Model Pretrained Loaded')
+
+    for k in list(var_dict.keys()):
+        if x[k].shape != var_dict[k].shape:
+           print(k, 'Error')
+
+    for k in list(var_dict.keys()):
+        var_dict[k] = torch.from_numpy(var_dict[k])
+
+    # remove 1001-th class
+    org_weight = var_dict['fc.weight'].clone()
+    org_bias = var_dict['fc.bias'].clone()
+    START = 1
+    var_dict['fc.weight'] = org_weight.narrow(0,START,1000).squeeze()
+    var_dict['fc.bias'] = org_bias.narrow(0,START,1000)
+
+    # load model
+    model.load_state_dict(var_dict, strict=True)
+
+
+    print('Model Pretrained Loaded')
